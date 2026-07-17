@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -9,49 +9,137 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Badge } from "./ui/badge";
 import { Upload, Sparkles, DollarSign, CheckCircle } from "lucide-react";
-import { ItemCategory, ItemCondition, AI_PRICING_SUGGESTIONS } from "../data/mockData";
-
-const CATEGORIES: ItemCategory[] = ["Textbooks", "Uniforms", "Electronics", "Stationery", "Sports Equipment", "Other"];
-const CONDITIONS: ItemCondition[] = ["New", "Like New", "Good", "Fair"];
+import { useAuth } from "@/app/lib/auth";
+import { supabase } from "@/app/lib/supabase";
+import { resolveListingImageUrl, uploadListingImage } from "@/app/lib/storage";
+import {
+  ITEM_CATEGORIES,
+  ITEM_CONDITIONS,
+  PRICING_SUGGESTIONS,
+  type ItemCategory,
+  type ItemCondition,
+} from "@/app/lib/types";
 
 export function CreatePost() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const { profile } = useAuth();
+  const isEditMode = Boolean(id);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState<ItemCategory | "">("");
+  const [category, setCategory] = useState<ItemCategory | null>(null);
   const [condition, setCondition] = useState<ItemCondition>("Good");
   const [price, setPrice] = useState("");
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [loading, setLoading] = useState(isEditMode);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const priceSuggestion = category && category !== "" ? AI_PRICING_SUGGESTIONS[category] : null;
+  useEffect(() => {
+    if (!isEditMode || !id || !profile) return;
+    let cancelled = false;
+
+    supabase
+      .from("listings")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (!data || data.seller_id !== profile.id) {
+          navigate("/my-listings", { replace: true });
+          return;
+        }
+        setTitle(data.title);
+        setDescription(data.description);
+        setCategory(data.category);
+        setCondition(data.condition);
+        setPrice(String(data.price));
+        setExistingImageUrl(data.image_url);
+        setImagePreview(resolveListingImageUrl(data.image_url) ?? "");
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEditMode, profile, navigate]);
+
+  const priceSuggestion = category ? PRICING_SUGGESTIONS[category] : null;
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    alert("Item posted successfully!");
-    navigate("/my-listings");
+    if (!profile || !category) return;
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      let imageUrl = existingImageUrl;
+      if (imageFile) {
+        imageUrl = await uploadListingImage(profile.id, imageFile);
+      }
+
+      if (isEditMode && id) {
+        const { error: updateError } = await supabase
+          .from("listings")
+          .update({
+            title,
+            description,
+            category,
+            condition,
+            price: Number(price),
+            image_url: imageUrl,
+          })
+          .eq("id", id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase.from("listings").insert({
+          school_id: profile.school_id,
+          seller_id: profile.id,
+          title,
+          description,
+          category,
+          condition,
+          price: Number(price),
+          image_url: imageUrl,
+        });
+        if (insertError) throw insertError;
+      }
+
+      navigate("/my-listings");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const applySuggestedPrice = (suggestedPrice: number) => {
     setPrice(suggestedPrice.toString());
   };
 
+  if (loading) {
+    return <div className="text-center py-16 text-gray-500">Loading…</div>;
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Post a New Item</h1>
-        <p className="text-gray-600">List your item for fellow Menlo School students</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{isEditMode ? "Edit Listing" : "Post a New Item"}</h1>
+        <p className="text-gray-600">
+          {isEditMode ? "Update your listing's details" : "List your item for fellow Menlo School students"}
+        </p>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -62,23 +150,22 @@ export function CreatePost() {
             <Card>
               <CardHeader>
                 <CardTitle>Item Photos</CardTitle>
-                <CardDescription>Upload clear photos of your item</CardDescription>
+                <CardDescription>Upload a clear photo of your item</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {imagePreview ? (
                     <div className="relative">
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="w-full h-64 object-cover rounded-lg"
-                      />
+                      <img src={imagePreview} alt="Preview" className="w-full h-64 object-cover rounded-lg" />
                       <Button
                         type="button"
                         variant="secondary"
                         size="sm"
                         className="absolute top-2 right-2"
-                        onClick={() => setImagePreview("")}
+                        onClick={() => {
+                          setImagePreview("");
+                          setImageFile(null);
+                        }}
                       >
                         Change Photo
                       </Button>
@@ -95,7 +182,7 @@ export function CreatePost() {
                       <input
                         type="file"
                         className="hidden"
-                        accept="image/*"
+                        accept="image/png,image/jpeg,image/webp"
                         onChange={handleImageUpload}
                       />
                     </label>
@@ -132,20 +219,18 @@ export function CreatePost() {
                     rows={5}
                     required
                   />
-                  <p className="text-xs text-gray-500">
-                    Be honest and detailed to build trust with buyers
-                  </p>
+                  <p className="text-xs text-gray-500">Be honest and detailed to build trust with buyers</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="category">Category *</Label>
-                    <Select value={category} onValueChange={(value) => setCategory(value as ItemCategory)}>
+                    <Select value={category ?? ""} onValueChange={(value) => setCategory(value as ItemCategory)}>
                       <SelectTrigger id="category">
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        {CATEGORIES.map((cat) => (
+                        {ITEM_CATEGORIES.map((cat) => (
                           <SelectItem key={cat} value={cat}>
                             {cat}
                           </SelectItem>
@@ -158,7 +243,7 @@ export function CreatePost() {
                     <Label>Condition *</Label>
                     <RadioGroup value={condition} onValueChange={(value) => setCondition(value as ItemCondition)}>
                       <div className="grid grid-cols-2 gap-2">
-                        {CONDITIONS.map((cond) => (
+                        {ITEM_CONDITIONS.map((cond) => (
                           <div key={cond} className="flex items-center space-x-2">
                             <RadioGroupItem value={cond} id={cond} />
                             <Label htmlFor={cond} className="font-normal cursor-pointer">
@@ -208,7 +293,9 @@ export function CreatePost() {
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
                           AI Price Suggestions
-                          <Badge variant="secondary" className="text-xs">Powered by AI</Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            Powered by AI
+                          </Badge>
                         </p>
                         <div className="grid grid-cols-3 gap-2 text-sm">
                           <button
@@ -257,22 +344,14 @@ export function CreatePost() {
               <CardContent>
                 {imagePreview && title ? (
                   <div className="space-y-3">
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
+                    <img src={imagePreview} alt="Preview" className="w-full h-32 object-cover rounded-lg" />
                     <div>
                       <h3 className="font-semibold text-sm line-clamp-2">{title}</h3>
-                      {price && (
-                        <p className="text-lg font-bold text-[#0A1E3C] mt-1">${price}</p>
-                      )}
+                      {price && <p className="text-lg font-bold text-[#0A1E3C] mt-1">${price}</p>}
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500 text-center py-8">
-                    Add photos and details to see preview
-                  </p>
+                  <p className="text-sm text-gray-500 text-center py-8">Add photos and details to see preview</p>
                 )}
               </CardContent>
             </Card>
@@ -302,16 +381,21 @@ export function CreatePost() {
               </CardContent>
             </Card>
 
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+
             {/* Submit Button */}
-            <Button type="submit" className="w-full bg-[#0A1E3C] hover:bg-[#050F1E] h-12">
-              Post Item
-            </Button>
             <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={() => navigate(-1)}
+              type="submit"
+              disabled={submitting || !category}
+              className="w-full bg-[#0A1E3C] hover:bg-[#050F1E] h-12"
             >
+              {submitting ? "Saving…" : isEditMode ? "Save Changes" : "Post Item"}
+            </Button>
+            <Button type="button" variant="outline" className="w-full" onClick={() => navigate(-1)}>
               Cancel
             </Button>
           </div>

@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -9,18 +10,63 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { PlusCircle, MoreVertical, Edit, Trash2, Eye, Heart } from "lucide-react";
-import { MY_LISTINGS } from "../data/mockData";
+import { useAuth } from "@/app/lib/auth";
+import { supabase } from "@/app/lib/supabase";
+import { resolveListingImageUrl } from "@/app/lib/storage";
+import type { Listing } from "@/app/lib/types";
+
+const STATUS_LABEL: Record<Listing["status"], string> = {
+  available: "Available",
+  sold: "Sold",
+  removed: "Removed",
+};
 
 export function MyListings() {
+  const navigate = useNavigate();
+  const { profile } = useAuth();
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+
+    supabase
+      .from("listings")
+      .select("*")
+      .eq("seller_id", profile.id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setListings(data ?? []);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile]);
+
   const handleEdit = (id: string) => {
-    alert(`Edit item ${id}`);
+    navigate(`/my-listings/${id}/edit`);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this listing?")) {
-      alert(`Deleted item ${id}`);
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this listing?")) return;
+
+    const previous = listings;
+    setListings((prev) => prev.filter((item) => item.id !== id));
+
+    const { error } = await supabase.from("listings").delete().eq("id", id);
+    if (error) {
+      setListings(previous);
+      alert("Couldn't delete this listing. Please try again.");
     }
   };
+
+  if (loading) {
+    return <div className="text-center py-16 text-gray-500">Loading…</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -43,7 +89,7 @@ export function MyListings() {
         <Card>
           <CardContent className="p-6">
             <div className="text-center">
-              <p className="text-3xl font-bold text-[#0A1E3C]">{MY_LISTINGS.length}</p>
+              <p className="text-3xl font-bold text-[#0A1E3C]">{listings.length}</p>
               <p className="text-sm text-gray-600 mt-1">Active Listings</p>
             </div>
           </CardContent>
@@ -52,7 +98,7 @@ export function MyListings() {
           <CardContent className="p-6">
             <div className="text-center">
               <p className="text-3xl font-bold text-green-600">
-                {MY_LISTINGS.reduce((sum, item) => sum + item.views, 0)}
+                {listings.reduce((sum, item) => sum + item.views_count, 0)}
               </p>
               <p className="text-sm text-gray-600 mt-1">Total Views</p>
             </div>
@@ -62,7 +108,7 @@ export function MyListings() {
           <CardContent className="p-6">
             <div className="text-center">
               <p className="text-3xl font-bold text-red-600">
-                {MY_LISTINGS.reduce((sum, item) => sum + item.likes, 0)}
+                {listings.reduce((sum, item) => sum + item.likes_count, 0)}
               </p>
               <p className="text-sm text-gray-600 mt-1">Total Likes</p>
             </div>
@@ -71,18 +117,18 @@ export function MyListings() {
       </div>
 
       {/* Listings */}
-      {MY_LISTINGS.length > 0 ? (
+      {listings.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
-          {MY_LISTINGS.map((item) => (
+          {listings.map((item) => (
             <Card key={item.id} className="overflow-hidden hover:shadow-md transition-shadow">
               <CardContent className="p-0">
                 <div className="flex flex-col sm:flex-row">
                   {/* Image */}
                   <div className="sm:w-48 flex-shrink-0">
                     <img
-                      src={item.image}
+                      src={resolveListingImageUrl(item.image_url)}
                       alt={item.title}
-                      className="w-full h-48 object-cover"
+                      className="w-full h-48 object-cover bg-gray-100"
                     />
                   </div>
 
@@ -91,8 +137,11 @@ export function MyListings() {
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <Badge variant={item.isAvailable ? "default" : "secondary"} className={item.isAvailable ? "bg-green-500" : ""}>
-                            {item.isAvailable ? "Available" : "Sold"}
+                          <Badge
+                            variant={item.status === "available" ? "default" : "secondary"}
+                            className={item.status === "available" ? "bg-green-500" : ""}
+                          >
+                            {STATUS_LABEL[item.status]}
                           </Badge>
                           <Badge variant="outline">{item.category}</Badge>
                           <Badge variant="outline">{item.condition}</Badge>
@@ -102,9 +151,7 @@ export function MyListings() {
                             {item.title}
                           </h3>
                         </Link>
-                        <p className="text-gray-600 text-sm line-clamp-2 mb-3">
-                          {item.description}
-                        </p>
+                        <p className="text-gray-600 text-sm line-clamp-2 mb-3">{item.description}</p>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -129,17 +176,15 @@ export function MyListings() {
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <div className="text-3xl font-bold text-[#0A1E3C]">
-                        ${item.price}
-                      </div>
+                      <div className="text-3xl font-bold text-[#0A1E3C]">${item.price}</div>
                       <div className="flex items-center gap-4 text-sm text-gray-600">
                         <span className="flex items-center gap-1">
                           <Eye size={16} />
-                          {item.views} views
+                          {item.views_count} views
                         </span>
                         <span className="flex items-center gap-1">
                           <Heart size={16} />
-                          {item.likes} likes
+                          {item.likes_count} likes
                         </span>
                       </div>
                     </div>
