@@ -34,7 +34,7 @@ export function ItemDetail() {
   const [selectedLocation, setSelectedLocation] = useState<string>("");
   const [flagReason, setFlagReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const viewCounted = useRef(false);
+  const viewCountedFor = useRef<string | null>(null);
 
   useEffect(() => {
     if (!id || !profile) return;
@@ -57,8 +57,8 @@ export function ItemDetail() {
   }, [id, profile]);
 
   useEffect(() => {
-    if (!id || viewCounted.current) return;
-    viewCounted.current = true;
+    if (!id || viewCountedFor.current === id) return;
+    viewCountedFor.current = id;
     supabase.rpc("increment_listing_views", { listing_id_input: id });
   }, [id]);
 
