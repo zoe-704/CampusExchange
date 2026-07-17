@@ -5,7 +5,8 @@
 
   ## Running the code
 
-  Run `npm i` to install the dependencies.
-
-  Run `npm run dev` to start the development server.
+  This app talks directly to a Supabase project (Postgres + Auth + Storage).
+  See [SETUP.md](./SETUP.md) for the full setup — starting Supabase locally,
+  environment variables, and applying migrations — before `npm run dev` will
+  work.
   
