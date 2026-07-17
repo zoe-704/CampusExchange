@@ -44,3 +44,25 @@ create policy "messages_update_recipient_marks_read"
   to authenticated
   using (recipient_id = auth.uid())
   with check (recipient_id = auth.uid());
+
+-- The RLS policy above only restricts which ROWS a recipient can update, not
+-- which columns — without this, a recipient could UPDATE ... SET body =
+-- '...' and rewrite what the sender actually said, since recipient_id stays
+-- unchanged and the WITH CHECK still passes. Lock every column except read.
+create or replace function public.protect_message_fields()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.listing_id := old.listing_id;
+  new.sender_id := old.sender_id;
+  new.recipient_id := old.recipient_id;
+  new.body := old.body;
+  new.created_at := old.created_at;
+  return new;
+end;
+$$;
+
+create trigger protect_message_fields
+  before update on public.messages
+  for each row execute function public.protect_message_fields();

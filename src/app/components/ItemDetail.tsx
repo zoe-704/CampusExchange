@@ -84,10 +84,14 @@ export function ItemDetail() {
     const next = !isSaved;
     setIsSaved(next);
     setItem((prev) => (prev ? { ...prev, likes_count: prev.likes_count + (next ? 1 : -1) } : prev));
-    if (next) {
-      await supabase.from("saved_items").insert({ user_id: profile.id, listing_id: item.id });
-    } else {
-      await supabase.from("saved_items").delete().eq("user_id", profile.id).eq("listing_id", item.id);
+
+    const { error } = next
+      ? await supabase.from("saved_items").insert({ user_id: profile.id, listing_id: item.id })
+      : await supabase.from("saved_items").delete().eq("user_id", profile.id).eq("listing_id", item.id);
+
+    if (error) {
+      setIsSaved(!next);
+      setItem((prev) => (prev ? { ...prev, likes_count: prev.likes_count + (next ? -1 : 1) } : prev));
     }
   };
 
@@ -104,7 +108,7 @@ export function ItemDetail() {
 
     const location = MEETUP_LOCATIONS.find((loc) => loc.id === selectedLocation);
 
-    await supabase.from("orders").insert({
+    const { error: orderError } = await supabase.from("orders").insert({
       listing_id: item.id,
       buyer_id: profile.id,
       seller_id: item.seller_id,
@@ -112,6 +116,14 @@ export function ItemDetail() {
       meetup_location: location?.name ?? selectedLocation,
     });
 
+    if (orderError) {
+      setSubmitting(false);
+      alert("Couldn't complete this purchase. Please try again.");
+      return;
+    }
+
+    // Best-effort — the order is the artifact that matters; don't fail the
+    // whole purchase over the opening message not sending.
     await supabase.from("messages").insert({
       listing_id: item.id,
       sender_id: profile.id,
@@ -127,12 +139,18 @@ export function ItemDetail() {
   const handleFlagItem = async () => {
     if (!profile) return;
     setSubmitting(true);
-    await supabase.from("reports").insert({
+    const { error } = await supabase.from("reports").insert({
       listing_id: item.id,
       reporter_id: profile.id,
       reason: flagReason.trim() || "Reported via community guidelines flag.",
     });
     setSubmitting(false);
+
+    if (error) {
+      alert("Couldn't submit this report. Please try again.");
+      return;
+    }
+
     setShowFlagDialog(false);
     setFlagReason("");
     alert("Item has been flagged for review. Our moderators will investigate.");

@@ -48,11 +48,22 @@ create policy "profiles_update_own"
 -- completed_transactions via a client-side UPDATE (e.g. through the Profile
 -- screen's "Edit Profile" form, which should only ever touch full_name /
 -- avatar_url). These fields are system-managed.
+--
+-- Trusted server-side paths (e.g. sync_order_completion crediting a sale)
+-- need to bypass this — they set the app.bypass_profile_protection GUC
+-- (transaction-local, via set_config(..., true)) immediately before their
+-- UPDATE. Without this escape hatch, this trigger would silently revert
+-- their write too, since it can't otherwise distinguish "the owning user
+-- editing their own row" from "a trusted function updating this row".
 create or replace function public.protect_profile_fields()
 returns trigger
 language plpgsql
 as $$
 begin
+  if coalesce(current_setting('app.bypass_profile_protection', true), 'false') = 'true' then
+    return new;
+  end if;
+
   new.school_id := old.school_id;
   new.email := old.email;
   new.rating := old.rating;

@@ -63,6 +63,34 @@ create policy "listings_delete_own"
   to authenticated
   using (seller_id = auth.uid());
 
+-- listings_update_own lets a seller change any column on their own row —
+-- intentional, that's the Edit Listing feature. But views_count/likes_count
+-- are supposed to be exclusively maintained by increment_listing_views()
+-- and the saved_items trigger below, not owner-writable: without this,
+-- a seller could `update listings set likes_count = 9999` directly and RLS
+-- would allow it, since the owner-update policy only constrains seller_id/
+-- school_id. Lock both counters to their old value on any client-driven
+-- UPDATE; trusted paths bypass via the same transaction-local GUC pattern
+-- used for profiles/messages (see protect_profile_fields).
+create or replace function public.protect_listing_counters()
+returns trigger
+language plpgsql
+as $$
+begin
+  if coalesce(current_setting('app.bypass_listing_counter_protection', true), 'false') = 'true' then
+    return new;
+  end if;
+
+  new.views_count := old.views_count;
+  new.likes_count := old.likes_count;
+  return new;
+end;
+$$;
+
+create trigger protect_listing_counters
+  before update on public.listings
+  for each row execute function public.protect_listing_counters();
+
 -- View counts need to increment regardless of who's looking (any signed-in
 -- same-school student viewing someone else's listing), which the owner-only
 -- UPDATE policy above deliberately doesn't allow. This SECURITY DEFINER RPC
@@ -74,6 +102,8 @@ security definer
 set search_path = public
 as $$
 begin
+  perform set_config('app.bypass_listing_counter_protection', 'true', true);
+
   update public.listings
   set views_count = views_count + 1
   where id = listing_id_input

@@ -54,6 +54,43 @@ create policy "orders_update_participant"
   using (buyer_id = auth.uid() or seller_id = auth.uid())
   with check (buyer_id = auth.uid() or seller_id = auth.uid());
 
+-- The RLS policy above only checks that the caller is a participant — on
+-- its own, that would let a buyer unilaterally set their own order's status
+-- to 'completed' (crediting the seller's completed_transactions and marking
+-- the listing sold, both via the trigger below) without the seller ever
+-- confirming anything. Lock down who can make which transition: only the
+-- seller can confirm/complete; either party can cancel; the identifying
+-- columns can't be changed at all.
+create or replace function public.restrict_order_updates()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.listing_id := old.listing_id;
+  new.buyer_id := old.buyer_id;
+  new.seller_id := old.seller_id;
+  new.created_at := old.created_at;
+
+  if new.status is distinct from old.status then
+    if new.status = 'cancelled' then
+      null; -- either party may cancel
+    elsif new.status in ('confirmed', 'completed') then
+      if auth.uid() is distinct from old.seller_id then
+        raise exception 'Only the seller can confirm or complete an order.';
+      end if;
+    else
+      raise exception 'Invalid order status transition.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger restrict_order_updates
+  before update on public.orders
+  for each row execute function public.restrict_order_updates();
+
 -- When an order is marked completed, credit the seller's completed-sales
 -- count and flip the listing to sold. This is the only place
 -- profiles.completed_transactions changes after signup.
@@ -65,6 +102,8 @@ set search_path = public
 as $$
 begin
   if new.status = 'completed' and old.status is distinct from 'completed' then
+    perform set_config('app.bypass_profile_protection', 'true', true);
+
     update public.profiles
     set completed_transactions = completed_transactions + 1
     where id = new.seller_id;

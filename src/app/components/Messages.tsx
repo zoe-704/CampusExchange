@@ -129,7 +129,8 @@ export function Messages() {
       .from("messages")
       .update({ read: true })
       .in("id", unreadIds)
-      .then(() => {
+      .then(({ error }) => {
+        if (error) return;
         setThreads((prev) =>
           prev.map((t) =>
             t.key !== selectedThread.key

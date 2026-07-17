@@ -61,10 +61,19 @@ export function Browse() {
       ),
     );
 
-    if (isSaved) {
-      await supabase.from("saved_items").delete().eq("user_id", profile.id).eq("listing_id", listingId);
-    } else {
-      await supabase.from("saved_items").insert({ user_id: profile.id, listing_id: listingId });
+    const { error } = isSaved
+      ? await supabase.from("saved_items").delete().eq("user_id", profile.id).eq("listing_id", listingId)
+      : await supabase.from("saved_items").insert({ user_id: profile.id, listing_id: listingId });
+
+    if (error) {
+      setSavedIds(savedIds);
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === listingId
+            ? { ...item, likes_count: item.likes_count + (isSaved ? 1 : -1) }
+            : item,
+        ),
+      );
     }
   };
 

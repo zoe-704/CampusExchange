@@ -35,6 +35,8 @@ security definer
 set search_path = public
 as $$
 begin
+  perform set_config('app.bypass_listing_counter_protection', 'true', true);
+
   if tg_op = 'INSERT' then
     update public.listings set likes_count = likes_count + 1 where id = new.listing_id;
     return new;
