@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { Logo } from "./Logo";
 import { Bell, Home, Search, PlusCircle, Package, Heart, MessageCircle, User, Menu, LogOut } from "lucide-react";
@@ -7,23 +6,11 @@ import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { useAuth } from "@/app/lib/auth";
-import { supabase } from "@/app/lib/supabase";
 
 export function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    if (!profile) return;
-    supabase
-      .from("messages")
-      .select("id", { count: "exact", head: true })
-      .eq("recipient_id", profile.id)
-      .eq("read", false)
-      .then(({ count }) => setUnreadCount(count ?? 0));
-  }, [profile]);
+  const { profile, signOut, unreadMessageCount: unreadCount } = useAuth();
 
   const handleSignOut = async () => {
     await signOut();

@@ -10,6 +10,8 @@ type AuthContextValue = {
   user: User | null;
   profile: Profile | null;
   initializing: boolean;
+  unreadMessageCount: number;
+  refreshUnreadCount: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (
     email: string,
@@ -26,10 +28,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   const loadProfile = async (userId: string) => {
     const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
     setProfile(data ?? null);
+  };
+
+  const loadUnreadCount = async (userId: string) => {
+    const { count } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("recipient_id", userId)
+      .eq("read", false);
+    setUnreadMessageCount(count ?? 0);
   };
 
   useEffect(() => {
@@ -39,7 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!isMounted) return;
       setSession(data.session);
       if (data.session?.user) {
-        loadProfile(data.session.user.id).finally(() => isMounted && setInitializing(false));
+        Promise.all([loadProfile(data.session.user.id), loadUnreadCount(data.session.user.id)]).finally(
+          () => isMounted && setInitializing(false),
+        );
       } else {
         setInitializing(false);
       }
@@ -49,8 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
       if (newSession?.user) {
         loadProfile(newSession.user.id);
+        loadUnreadCount(newSession.user.id);
       } else {
         setProfile(null);
+        setUnreadMessageCount(0);
       }
     });
 
@@ -91,6 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (session?.user) await loadProfile(session.user.id);
   };
 
+  const refreshUnreadCount = async () => {
+    if (session?.user) await loadUnreadCount(session.user.id);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -98,6 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         profile,
         initializing,
+        unreadMessageCount,
+        refreshUnreadCount,
         signIn,
         signUp,
         signOut,
