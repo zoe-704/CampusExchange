@@ -41,8 +41,8 @@ create policy "orders_insert_buyer"
     buyer_id = auth.uid()
     and exists (
       select 1 from public.listings l
-      where l.id = listing_id
-        and l.seller_id = seller_id
+      where l.id = orders.listing_id
+        and l.seller_id = orders.seller_id
         and l.status = 'available'
         and l.school_id = public.current_school_id()
     )
