@@ -1,22 +1,33 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Eye, EyeOff } from "lucide-react";
 import { Logo } from "./Logo";
+import { useAuth } from "@/app/lib/auth";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { signIn } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Login attempt with:", { email, password });
-    // Redirect to dashboard after login
+    setError(null);
+    setSubmitting(true);
+    const { error: signInError } = await signIn(email, password);
+    setSubmitting(false);
+
+    if (signInError) {
+      setError(signInError);
+      return;
+    }
     navigate("/dashboard");
   };
 
@@ -51,7 +62,7 @@ export function LoginPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="student@university.edu"
+                    placeholder="student@menloschool.org"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -94,11 +105,18 @@ export function LoginPage() {
                   </a>
                 </div>
 
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                )}
+
                 <Button
                   type="submit"
+                  disabled={submitting}
                   className="w-full bg-[#0A1E3C] hover:bg-[#050F1E] text-white"
                 >
-                  Sign In
+                  {submitting ? "Signing in..." : "Sign In"}
                 </Button>
 
                 <div className="relative my-6">
@@ -140,9 +158,9 @@ export function LoginPage() {
               <div className="mt-6 text-center">
                 <p className="text-sm text-gray-600">
                   Don't have an account?{" "}
-                  <a href="#" className="text-[#0A1E3C] hover:text-[#050F1E] hover:underline">
+                  <Link to="/signup" className="text-[#0A1E3C] hover:text-[#050F1E] hover:underline">
                     Sign up
-                  </a>
+                  </Link>
                 </p>
               </div>
             </CardContent>

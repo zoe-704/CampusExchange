@@ -1,25 +1,48 @@
-import { Link, Outlet, useLocation } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { Logo } from "./Logo";
-import { Bell, Home, Search, PlusCircle, Package, Heart, MessageCircle, User, Menu } from "lucide-react";
+import { Bell, Home, Search, PlusCircle, Package, Heart, MessageCircle, User, Menu, LogOut } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
-import { CURRENT_USER } from "../data/mockData";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { useAuth } from "@/app/lib/auth";
+import { supabase } from "@/app/lib/supabase";
 
 export function Layout() {
   const location = useLocation();
-  
+  const navigate = useNavigate();
+  const { profile, signOut } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!profile) return;
+    supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("recipient_id", profile.id)
+      .eq("read", false)
+      .then(({ count }) => setUnreadCount(count ?? 0));
+  }, [profile]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
   const navItems = [
     { to: "/dashboard", icon: Home, label: "Dashboard" },
     { to: "/browse", icon: Search, label: "Browse" },
     { to: "/create", icon: PlusCircle, label: "Post Item" },
     { to: "/my-listings", icon: Package, label: "My Listings" },
     { to: "/saved", icon: Heart, label: "Saved" },
-    { to: "/messages", icon: MessageCircle, label: "Messages", badge: 1 },
+    { to: "/messages", icon: MessageCircle, label: "Messages", badge: unreadCount },
     { to: "/profile", icon: User, label: "Profile" },
   ];
 
   const isActive = (path: string) => location.pathname === path;
+
+  if (!profile) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -67,20 +90,33 @@ export function Layout() {
             <div className="flex items-center space-x-3">
               <Link to="/messages" className="relative p-2 text-gray-600 hover:text-[#0A1E3C] hidden md:block">
                 <MessageCircle size={20} />
-                <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
+                {unreadCount > 0 && (
+                  <span className="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
+                )}
               </Link>
               <Link to="/profile" className="relative p-2 text-gray-600 hover:text-[#0A1E3C] hidden md:block">
                 <Bell size={20} />
               </Link>
-              <Link
-                to="/profile"
-                className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <div className="w-8 h-8 bg-[#0A1E3C] rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                  {CURRENT_USER.name.charAt(0)}
-                </div>
-                <span className="text-sm font-medium text-gray-700 hidden lg:block">{CURRENT_USER.name}</span>
-              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div className="w-8 h-8 bg-[#0A1E3C] rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                      {profile.full_name.charAt(0)}
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 hidden lg:block">{profile.full_name}</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => navigate("/profile")}>
+                    <User size={16} className="mr-2" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
+                    <LogOut size={16} className="mr-2" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* Mobile Menu */}
               <Sheet>
@@ -114,6 +150,13 @@ export function Layout() {
                         </Link>
                       );
                     })}
+                    <button
+                      onClick={handleSignOut}
+                      className="flex items-center space-x-3 px-4 py-3 rounded-lg text-red-600 hover:bg-gray-100 transition-colors text-left"
+                    >
+                      <LogOut size={20} />
+                      <span className="font-medium">Log out</span>
+                    </button>
                   </div>
                 </SheetContent>
               </Sheet>
