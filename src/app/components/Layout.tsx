@@ -86,7 +86,10 @@ export function Layout() {
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                  <button
+                    data-testid="user-menu-trigger"
+                    className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
                     <div className="w-8 h-8 bg-[#0A1E3C] rounded-full flex items-center justify-center text-white text-sm font-semibold">
                       {profile.full_name.charAt(0)}
                     </div>
@@ -98,7 +101,7 @@ export function Layout() {
                     <User size={16} className="mr-2" />
                     Profile
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
+                  <DropdownMenuItem data-testid="logout-button" onClick={handleSignOut} className="text-red-600">
                     <LogOut size={16} className="mr-2" />
                     Log out
                   </DropdownMenuItem>
