@@ -10,6 +10,8 @@ type AuthContextValue = {
   user: User | null;
   profile: Profile | null;
   initializing: boolean;
+  profileLoading: boolean;
+  profileError: string | null;
   unreadMessageCount: number;
   refreshUnreadCount: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -28,11 +30,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   const loadProfile = async (userId: string) => {
-    const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
-    setProfile(data ?? null);
+    setProfileLoading(true);
+    const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
+    if (error) {
+      console.error("Failed to load profile", error);
+      setProfile(null);
+      setProfileError(error.message);
+    } else {
+      setProfile(data);
+      setProfileError(null);
+    }
+    setProfileLoading(false);
   };
 
   const loadUnreadCount = async (userId: string) => {
@@ -66,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loadUnreadCount(newSession.user.id);
       } else {
         setProfile(null);
+        setProfileError(null);
         setUnreadMessageCount(0);
       }
     });
@@ -118,6 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         profile,
         initializing,
+        profileLoading,
+        profileError,
         unreadMessageCount,
         refreshUnreadCount,
         signIn,
