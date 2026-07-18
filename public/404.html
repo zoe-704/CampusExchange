@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Campus Exchange</title>
+    <script type="text/javascript">
+      // GitHub Pages serves this for any path it doesn't recognize as a
+      // real file (i.e. every client-side route). It re-encodes the path
+      // into a query string and redirects to index.html, which decodes it
+      // back (see the matching script in index.html) before React Router
+      // ever mounts — so a deep link or refresh on e.g. /CampusExchange/browse
+      // still lands on the right route instead of a dead 404 page.
+      var pathSegmentsToKeep = 1; // "/CampusExchange"
+      var l = window.location;
+      l.replace(
+        l.protocol + "//" + l.hostname + (l.port ? ":" + l.port : "") +
+        l.pathname.split("/").slice(0, 1 + pathSegmentsToKeep).join("/") + "/?/" +
+        l.pathname.slice(1).split("/").slice(pathSegmentsToKeep).join("/").replace(/&/g, "~and~") +
+        (l.search ? "&" + l.search.slice(1).replace(/&/g, "~and~") : "") +
+        l.hash
+      );
+    </script>
+  </head>
+  <body></body>
+</html>

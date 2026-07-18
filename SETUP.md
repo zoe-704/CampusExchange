@@ -49,7 +49,7 @@ npm install
 npm run dev
 ```
 
-The app runs at `http://localhost:5173` (or whatever port Vite picks).
+The site runs at `http://localhost:5173` (or whatever port Vite picks).
 
 Other scripts:
 
@@ -156,3 +156,39 @@ seed against a real project; it creates real auth.users rows with a shared
 published password). Set `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` in
 your hosting provider's environment to the values from Project Settings >
 API, then `npm run build`.
+
+Since Supabase auth/data access is entirely governed by RLS, the anon key
+is meant to be public (it's the same key a browser using the app already
+sees) — safe to bake into a static, client-only build like the one below.
+
+### Deploying to GitHub Pages
+
+The repo ships `.github/workflows/deploy.yml`, which builds and deploys to
+GitHub Pages automatically on every push to `main`.
+
+One-time setup:
+
+1. In the repo's GitHub Settings > Pages, set **Source** to "GitHub
+   Actions".
+2. In Settings > Secrets and variables > Actions, add repository secrets
+   `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (same values as your
+   local `.env`, pointed at your real/hosted Supabase project — Pages
+   can't reach a `supabase start` running on your laptop).
+3. Push to `main`. The Actions tab shows the build/deploy run; the site
+   then serves from `https://<your-username>.github.io/CampusExchange/`.
+
+This is a project page (served from a `/CampusExchange/` subpath, not the
+repo owner's root `username.github.io`), which two things account for:
+
+- `vite.config.ts`'s `base` is `/CampusExchange/` when `GITHUB_PAGES=true`
+  (set by the workflow) and `/` otherwise, so local dev is unaffected.
+- `src/app/routes.ts` passes that same `base` as the router's `basename`,
+  and `public/404.html` + a matching decode script in `index.html`
+  implement the standard [SPA-on-GitHub-Pages
+  redirect](https://github.com/rafgraph/spa-github-pages) — without it,
+  GitHub Pages 404s on refresh or a direct link to anything but `/`,
+  since it has no way to run React Router's client-side matching itself.
+
+If you rename the repo, update `pathSegmentsToKeep` in `public/404.html`
+(currently `1`, matching the one `/CampusExchange` path segment) and the
+`base` in `vite.config.ts` to match.
