@@ -42,7 +42,11 @@ export function ItemDetail() {
 
     async function load() {
       const [listingRes, savedRes] = await Promise.all([
-        supabase.from("listings").select("*, seller:profiles(*)").eq("id", id!).maybeSingle(),
+        supabase
+          .from("listings")
+          .select("*, seller:profiles!listings_seller_id_fkey(*)")
+          .eq("id", id!)
+          .maybeSingle(),
         supabase.from("saved_items").select("listing_id").eq("user_id", profile!.id).eq("listing_id", id!).maybeSingle(),
       ]);
       if (cancelled) return;

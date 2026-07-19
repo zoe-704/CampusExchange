@@ -20,7 +20,7 @@ export function SavedItems() {
 
     supabase
       .from("saved_items")
-      .select("created_at, listing:listings(*, seller:profiles(*))")
+      .select("created_at, listing:listings(*, seller:profiles!listings_seller_id_fkey(*))")
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => {

@@ -28,7 +28,7 @@ export function Browse() {
       const [listingsRes, savedRes] = await Promise.all([
         supabase
           .from("listings")
-          .select("*, seller:profiles(*)")
+          .select("*, seller:profiles!listings_seller_id_fkey(*)")
           .eq("status", "available")
           .order("created_at", { ascending: false }),
         supabase.from("saved_items").select("listing_id").eq("user_id", profile!.id),

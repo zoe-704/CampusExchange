@@ -23,7 +23,7 @@ export function Dashboard() {
       const [listingsRes, activeListingsRes, pendingOrdersRes, savedItemsRes] = await Promise.all([
         supabase
           .from("listings")
-          .select("*, seller:profiles(*)")
+          .select("*, seller:profiles!listings_seller_id_fkey(*)")
           .eq("status", "available")
           .order("created_at", { ascending: false })
           .limit(6),
