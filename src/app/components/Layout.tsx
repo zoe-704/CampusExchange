@@ -3,7 +3,7 @@ import { Logo } from "./Logo";
 import { Bell, Home, Search, PlusCircle, Package, Heart, MessageCircle, User, Menu, LogOut } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetTrigger } from "./ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { useAuth } from "@/app/lib/auth";
 
@@ -63,7 +63,7 @@ export function Layout() {
                   >
                     <Icon size={18} />
                     <span className="text-sm font-medium">{item.label}</span>
-                    {item.badge && (
+                    {Boolean(item.badge) && (
                       <Badge className="bg-[#D4AF37] text-[#0A1E3C] hover:bg-[#D4AF37]">
                         {item.badge}
                       </Badge>
@@ -121,32 +121,35 @@ export function Layout() {
                       const Icon = item.icon;
                       const active = isActive(item.to);
                       return (
-                        <Link
-                          key={item.to}
-                          to={item.to}
-                          className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                            active
-                              ? "bg-[#E8D5A1]/30 text-[#0A1E3C]"
-                              : "text-gray-600 hover:bg-gray-100"
-                          }`}
-                        >
-                          <Icon size={20} />
-                          <span className="font-medium">{item.label}</span>
-                          {item.badge && (
-                            <Badge className="ml-auto bg-[#D4AF37] text-[#0A1E3C] hover:bg-[#D4AF37]">
-                              {item.badge}
-                            </Badge>
-                          )}
-                        </Link>
+                        <SheetClose asChild key={item.to}>
+                          <Link
+                            to={item.to}
+                            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                              active
+                                ? "bg-[#E8D5A1]/30 text-[#0A1E3C]"
+                                : "text-gray-600 hover:bg-gray-100"
+                            }`}
+                          >
+                            <Icon size={20} />
+                            <span className="font-medium">{item.label}</span>
+                            {Boolean(item.badge) && (
+                              <Badge className="ml-auto bg-[#D4AF37] text-[#0A1E3C] hover:bg-[#D4AF37]">
+                                {item.badge}
+                              </Badge>
+                            )}
+                          </Link>
+                        </SheetClose>
                       );
                     })}
-                    <button
-                      onClick={handleSignOut}
-                      className="flex items-center space-x-3 px-4 py-3 rounded-lg text-red-600 hover:bg-gray-100 transition-colors text-left"
-                    >
-                      <LogOut size={20} />
-                      <span className="font-medium">Log out</span>
-                    </button>
+                    <SheetClose asChild>
+                      <button
+                        onClick={handleSignOut}
+                        className="flex items-center space-x-3 px-4 py-3 rounded-lg text-red-600 hover:bg-gray-100 transition-colors text-left"
+                      >
+                        <LogOut size={20} />
+                        <span className="font-medium">Log out</span>
+                      </button>
+                    </SheetClose>
                   </div>
                 </SheetContent>
               </Sheet>

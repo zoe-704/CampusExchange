@@ -3,13 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
-import { PlusCircle, MoreVertical, Edit, Trash2, Eye, Heart } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Eye, Heart } from "lucide-react";
 import { useAuth } from "@/app/lib/auth";
 import { supabase } from "@/app/lib/supabase";
 import { resolveListingImageUrl } from "@/app/lib/storage";
@@ -153,26 +147,32 @@ export function MyListings() {
                         </Link>
                         <p className="text-gray-600 text-sm line-clamp-2 mb-3">{item.description}</p>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical size={20} />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(item.id)}>
-                            <Edit size={16} className="mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDelete(item.id)}
-                            className="text-red-600"
-                          >
-                            <Trash2 size={16} className="mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {/* Plain always-visible buttons rather than a dropdown — a
+                          Radix DropdownMenu nested this deep in the card layout
+                          was positioning its portaled content nowhere near the
+                          trigger (a floating-ui measurement bug reproducible in
+                          both dev and prod builds); this sidesteps it entirely. */}
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          data-testid="listing-edit-button"
+                          onClick={() => handleEdit(item.id)}
+                          aria-label="Edit listing"
+                        >
+                          <Edit size={18} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          data-testid="listing-delete-button"
+                          onClick={() => handleDelete(item.id)}
+                          className="text-red-600 hover:text-red-700"
+                          aria-label="Delete listing"
+                        >
+                          <Trash2 size={18} />
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between">
